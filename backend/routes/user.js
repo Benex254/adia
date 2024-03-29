@@ -56,19 +56,70 @@ router.post("/user/login/", async (req, res) => {
       userName: user.userName,
       email: user.email,
     };
-    const token = jwt.sign(user_, SECRET_KEY, { expiresIn: "25m" });
+    const token = jwt.sign(user_, SECRET_KEY, { expiresIn: "12h" });
     // const refreshToken = jwt.sign(user_, process.env.SECRET_KEY,{expiresIn:"30s"});
     res.status(200).json({ token });
   } catch (err) {
     return res.status(500).json({ "ERROR😬": `${err.message}` });
   }
 });
+
+// TODO: create a new token when a user is created +error handling when required values are
+// TODO: checking whether input username exists as separate maybe
+// creates a new user
+router.post("user/new", async (req, res) => {
+  const newUser = new User(req.body);
+  try {
+    await newUser.save();
+    res.status(201).json(newUser);
+  } catch (err) {
+    res.status(400).json(err.message);
+  }
+});
+
 // search for a user in users
+router.get("/searchUsers/", async (req, res) => {
+  try {
+    const validateNum = /^[1-9]\d*$/;
+    const validPage = req.query.page ? validateNum.test(req.query.page) : false;
+    const validPerPage = req.query.perPage
+      ? validateNum.test(req.query.perPage)
+      : false;
+    const page = validPage ? +req.query.page : 1;
+    const perPage = validPerPage ? +req.query.perPage : 10;
+    const skip = (page - 1) * perPage;
+    const matched = await User.find(
+      {
+        userName: { $regex: new RegExp(req.query.username, "i") },
+      },
+      {
+        _id: 1,
+        userName: 1,
+        followersCount: { $size: "$followers" },
+        blogsCount: { $size: "$blogs" },
+      }
+    )
+      .skip(skip)
+      .limit(perPage);
+
+    const totalCount = await User.countDocuments({
+      userName: { $regex: new RegExp(req.query.username, "i") },
+    });
+
+    res.status(200).json({ totalCount, matched: matched });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while searching for users" });
+  }
+});
+
 // by userName
 router.get("/getByUserName/:userName", async (req, res) => {
   try {
     const user = await User.findOne({ userName: req.params.userName });
-    if (!user) return res.status(404).json({ message: "😬 user not found" });
+    if (!user) return res.status(404).json({ UserError: "😬 user not found" });
     res.status(200).json(user);
   } catch (err) {
     res.status(400).json({ "ERROR😬": `${err.message}` });
@@ -86,19 +137,9 @@ router.get("/getByEmail/:email", async (req, res) => {
   }
 });
 
-// protected user routes + create new user
+// protected user routes
 router
   .route("/user")
-  // creates a new user
-  .post(async (req, res) => {
-    const newUser = new User(req.body);
-    try {
-      await newUser.save();
-      res.status(201).json(newUser);
-    } catch (err) {
-      res.status(400).json(err.message);
-    }
-  })
   // get user by id
   .get(verifyToken, async (req, res) => {
     const toPopulate = [];
@@ -134,8 +175,6 @@ router
   .put(verifyToken, async (req, res) => {
     try {
       const update = { ...req.body };
-
-      // TODO:get rid of my mess and also add error handling for cases where not an array
       const user_ = await User.findById(req.id);
       // updating (adding) those that are arrays
       if (update.friends) {
@@ -148,7 +187,7 @@ router
         delete update.friends;
       }
       if (update.interests) {
-        if (!typeof update.interests == Array)
+        if (!Array.isArray(update.interests))
           return res.status(400).json({ ValueError: "should be an array" });
 
         update.interests = update.interests.filter(
@@ -158,7 +197,7 @@ router
         delete update.interests;
       }
       if (update.following) {
-        if (!typeof update.following == Array)
+        if (!Array.isArray(update.following))
           return res.status(400).json({ ValueError: "should be an array" });
         update.following = update.following.filter(
           (followed) =>
@@ -168,7 +207,7 @@ router
         delete update.following;
       }
       if (update.bookmarks) {
-        if (!typeof update.bookmarks == Array)
+        if (!Array.isArray(update.bookmarks))
           return res.status(400).json({ ValueError: "should be an array" });
         update.bookmarks = update.bookmarks.filter(
           (bookmark) => !user_.bookmarks.includes(bookmark)
@@ -177,7 +216,7 @@ router
         delete update.bookmarks;
       }
       if (update.followers) {
-        if (!typeof update.followers == Array)
+        if (!Array.isArray(update.followers))
           return res.status(400).json({ ValueError: "should be an array" });
         update.followers = update.followers.filter(
           (follower) =>
@@ -187,7 +226,7 @@ router
         delete update.followers;
       }
       if (update.blogs) {
-        if (!typeof update.blogs == Array)
+        if (!Array.isArray(update.blogs))
           return res.status(400).json({ ValueError: "should be an array" });
         update.blogs = update.blogs.filter(
           (blog) => !user_.blogs.includes(blog)
@@ -196,7 +235,7 @@ router
         delete update.blogs;
       }
       if (update.liked) {
-        if (!typeof update.liked == Array)
+        if (!Array.isArray(update.liked))
           return res.status(400).json({ ValueError: "should be an array" });
         update.liked = update.liked.filter(
           (blog) => !user_.liked.includes(blog)
@@ -207,30 +246,44 @@ router
 
       //updating (removing) those that are arrays
       if (update.remove_friends) {
+        if (!Array.isArray(update.remove_friends))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { friends: update.remove_friends };
         delete update.remove_friends;
       }
       if (update.remove_interests) {
+        if (!Array.isArray(update.remove_interests))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ interests: update.remove_interests } };
         delete update.remove_interests;
       }
       if (update.remove_following) {
+        if (!Array.isArray(update.remove_following))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ following: update.remove_following } };
         delete update.remove_following;
       }
       if (update.remove_bookmarks) {
+        if (!Array.isArray(update.remove_bookmarks))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ bookmarks: update.remove_bookmarks } };
         delete update.remove_bookmarks;
       }
       if (update.remove_followers) {
+        if (!Array.isArray(update.remove_followers))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ followers: update.remove_followers } };
         delete update.remove_followers;
       }
       if (update.remove_blogs) {
+        if (!Array.isArray(update.remove_blogs))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ blogs: update.remove_blogs } };
         delete update.remove_blogs;
       }
       if (update.remove_liked) {
+        if (!Array.isArray(update.remove_liked))
+          return res.status(400).json({ ValueError: "should be an array" });
         update.$pullAll = { ...{ liked: update.remove_liked } };
         delete update.remove_liked;
       }
