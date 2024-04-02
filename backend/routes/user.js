@@ -77,6 +77,8 @@ router.post("user/new", async (req, res) => {
   }
 });
 
+// TODO: add sort functionality to search results
+
 // search for a user in users
 router.get("/searchUsers/", async (req, res) => {
   try {
