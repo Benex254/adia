@@ -11,12 +11,15 @@ const NotificationBell = styled.button`
   display: flex;
   justify-content: center;
   align-items: center;
+  :hover {
+    color: pink;
+  }
 `;
 
 const NotificationsBell = () => {
   return (
     <NotificationBell>
-      <Notifications style={{ color: "white" ,fontSize:24}} />
+      <Notifications style={{ color: "white", fontSize: 24 }} />
     </NotificationBell>
   );
 };
