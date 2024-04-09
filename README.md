@@ -1,1 +1,2 @@
-# the official repo for the adia project trully a snippet of daily wisdom
+# The official repo for the Adia project 
+## Trully a snippet of daily wisdom
