@@ -28,6 +28,7 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
+        working-directory: ./frontend
         cache: 'npm'
     - run: npm ci
     - run: npm run deploy 
