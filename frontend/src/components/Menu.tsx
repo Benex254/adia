@@ -17,9 +17,6 @@ const MenuContainer = styled.div<{
   width: 100px;
   text-overflow: ellipsis;
   transform: translateX(-50%);
-  ${(props) => {
-    return props.styles && { ...props.styles };
-  }}
 `;
 
 const MenuWrapper = styled.div`
